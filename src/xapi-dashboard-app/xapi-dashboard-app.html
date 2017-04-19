@@ -1,0 +1,103 @@
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../../bower_components/google-chart/google-chart.html">
+<link rel="import" href="../../bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
+<link rel="import" href="../../bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="../../bower_components/paper-item/paper-item.html">
+
+<dom-module id="xapi-dashboard-app">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+      google-chart {
+        width: 100%;
+        max-width: 50em;
+        margin: auto;
+      }
+    </style>
+    <iron-ajax
+       auto
+       url=" PUT URL HERE "
+       headers="[[headers]]"
+       handle-as="json"
+       last-response="{{data}}"></iron-ajax>
+
+      <template is="dom-if" if="[[chartType]]">
+        <google-chart
+          type='[[activeChartType]]'
+          options='{"title": "Device Count"}'
+          cols='[{"label":"Device", "type":"string"}, {"label":"Count", "type":"number"}]'
+          rows='[[chartData]]'>
+        </google-chart>
+      </template>
+
+      <paper-dropdown-menu label="Chart Type">
+        <paper-listbox class="dropdown-content" selected="{{chartType}}">
+          <template is="dom-repeat" items="[[chartTypes]]">
+            <paper-item>[[item]]</paper-item>
+          </template>
+        </paper-listbox>
+      </paper-dropdown-menu>
+    </template>
+
+
+  <script>
+    Polymer({
+
+      is: 'xapi-dashboard-app',
+
+      properties: {
+        // configurable headers
+        headers: {
+          type: Object,
+          value: {
+            "authorization": " PUT BASIC AUTH HERE ",
+            "cache-control": "no-cache",
+          },
+        },
+        // Original Data coming from source
+        data: {
+          type: Object,
+          observer: '_dataChanged'
+        },
+        chartData: {
+          type: Array,
+        },
+        chartType: {
+          type: String,
+          value: '0'
+        },
+        chartTypes: {
+          type: Array,
+          value: ['area', 'bar', 'pie'],
+          readOnly: true
+        },
+        activeChartType: {
+          type: String,
+          computed: '_computedactiveChartType(chartType, chartTypes)'
+        }
+      },
+      _computedactiveChartType: function(chartType, chartTypes) {
+        return chartTypes[Number(chartType)];
+      },
+      _dataChanged: function(newData, oldData) {
+        var root = this;
+        var result = newData.result;
+        this.statements = result;
+
+        // put together a new array for the chart data.
+        var newArray = [];
+        for (i = 0; i < result.length; i++) {
+          var _item = result[i];
+          newArray.push([
+            _item._id,
+            _item.count
+          ]);
+        }
+        root.chartData = newArray;
+      }
+    });
+  </script>
+</dom-module>

@@ -1,0 +1,6 @@
+{
+  "name": "xapi-dashboard",
+  "short_name": "xapi-dashboard",
+  "start_url": "/",
+  "display": "standalone"
+}
