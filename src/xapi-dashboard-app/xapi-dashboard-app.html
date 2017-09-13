@@ -4,44 +4,44 @@
 <link rel="import" href="../../bower_components/paper-dropdown-menu/paper-dropdown-menu.html">
 <link rel="import" href="../../bower_components/paper-listbox/paper-listbox.html">
 <link rel="import" href="../../bower_components/paper-item/paper-item.html">
+<link rel="import" href="../../bower_components/paper-password-input/paper-password-input.html">
+<link rel="import" href="../../bower_components/paper-button/paper-button.html">
 
 <dom-module id="xapi-dashboard-app">
   <template>
     <style>
-      :host {
+       :host {
         display: block;
       }
+
       google-chart {
         width: 100%;
         max-width: 50em;
         margin: auto;
       }
     </style>
-    <iron-ajax
-       auto
-       url=" PUT URL HERE "
-       headers="[[headers]]"
-       handle-as="json"
-       last-response="{{data}}"></iron-ajax>
+    <iron-ajax id="fetchStatements" url='[[url]]' headers="[[headers]]" handle-as="json" last-response="{{data}}"></iron-ajax>
 
-      <template is="dom-if" if="[[chartType]]">
-        <google-chart
-          type='[[activeChartType]]'
-          options='{"title": "Device Count"}'
-          cols='[{"label":"Device", "type":"string"}, {"label":"Count", "type":"number"}]'
-          rows='[[chartData]]'>
-        </google-chart>
-      </template>
+    <paper-input label="Basepath" value="{{basepath}}" disabled="[[formDisabled]]"></paper-input>
+    <paper-password-input label="Auth Header" value="{{authHeader}}" disabled="[[formDisabled]]"></paper-password-input>
+    <paper-input label="Actor Id" value="{{actorId}}" error-message="{{actorIdErrorMsg}}" invalid="[[actorIdInvalid]]" disabled="[[formDisabled]]"></paper-input>
+    <paper-button raised on-click="_getStatements">Get Statements</paper-button>
 
-      <paper-dropdown-menu label="Chart Type">
-        <paper-listbox class="dropdown-content" selected="{{chartType}}">
-          <template is="dom-repeat" items="[[chartTypes]]">
-            <paper-item>[[item]]</paper-item>
-          </template>
-        </paper-listbox>
-      </paper-dropdown-menu>
+
+    <template is="dom-if" if="[[chartType]]">
+      <google-chart type='[[activeChartType]]' cols='[{"label":"Verb", "type":"string"}, {"label":"Count", "type":"number"}]'
+        rows='[[chartData]]' options="[[chartOptions]]">
+      </google-chart>
     </template>
 
+    <paper-dropdown-menu label="Chart Type">
+      <paper-listbox class="dropdown-content" selected="{{chartType}}">
+        <template is="dom-repeat" items="[[chartTypes]]">
+          <paper-item>[[item]]</paper-item>
+        </template>
+      </paper-listbox>
+    </paper-dropdown-menu>
+  </template>
 
   <script>
     Polymer({
@@ -52,10 +52,15 @@
         // configurable headers
         headers: {
           type: Object,
-          value: {
-            "authorization": " PUT BASIC AUTH HERE ",
-            "cache-control": "no-cache",
-          },
+          computed: '_headersCompute(authHeader)'
+        },
+        authHeader: {
+          type: String,
+          value: 'Basic 1234ABCD'
+        },
+        basepath: {
+          type: String,
+          value: 'https://mylearninglockerurlsite.com'
         },
         // Original Data coming from source
         data: {
@@ -77,26 +82,80 @@
         activeChartType: {
           type: String,
           computed: '_computedactiveChartType(chartType, chartTypes)'
+        },
+        url: {
+          type: String,
+          computed: '_urlCompute(basepath, actorId)'
+        },
+        chartOptions: {
+          type: Object,
+          computed: '_chartOptionsCompute(chartData)'
+        },
+        actorId: {
+          type: String
         }
       },
-      _computedactiveChartType: function(chartType, chartTypes) {
+
+      _headersCompute: function (authHeader) {
+        return {
+          "authorization": authHeader,
+          "cache-control": "no-cache",
+        }
+      },
+      _urlCompute: function (basepath, actorId) {
+        if (actorId) {
+          var options = [{
+            "$match": {
+              "statement.actor.name": actorId
+            }
+          }];
+        }
+        return `${basepath}/api/v1/statements/aggregate?pipeline=${JSON.stringify(options)}`;
+      },
+      _computedactiveChartType: function (chartType, chartTypes) {
         return chartTypes[Number(chartType)];
       },
-      _dataChanged: function(newData, oldData) {
+      _chartOptionsCompute: function (chartData) {
+        var totalStatements = chartData.reduce((previousValue, currentValue) => {
+          if (typeof previousValue !== 'number') {
+            var prevCount = previousValue[1];
+          }
+          else {
+            var prevCount = previousValue;
+          }
+          var currentCount = currentValue[1];
+          return prevCount + currentCount;
+        });
+        return {
+          title: `You have ${totalStatements} statements.`
+        }
+      },
+
+
+      _getStatements: function (e) {
+        this.actorIdInvalid = false;
+        this.formDisabled = true;
+        this.$.fetchStatements.generateRequest();
+      },
+      _dataChanged: function (newData, oldData) {
         var root = this;
         var result = newData.result;
-        this.statements = result;
-
-        // put together a new array for the chart data.
-        var newArray = [];
-        for (i = 0; i < result.length; i++) {
-          var _item = result[i];
-          newArray.push([
-            _item._id,
-            _item.count
-          ]);
+        if (newData.result.length < 1) {
+          this.actorIdErrorMsg = 'There are no statements for that user.';
+          this.actorIdInvalid = true;
+          this.formDisabled = false;
+          return;
         }
-        root.chartData = newArray;
+        this.statements = result;
+        // get unique verbs
+        var verbs = result
+            .map(item => item.statement.verb.display['en-US'])
+            .filter((v, i, a) => a.indexOf(v) === i);
+
+        var chartData = verbs.map(verb => [verb, result.filter(statement => statement.statement.verb.display['en-US'] === verb).length]);
+        root.chartData = chartData;
+        this.formDisabled = false;
+        this.actorIdInvalid = false;
       }
     });
   </script>
