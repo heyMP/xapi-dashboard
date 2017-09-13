@@ -1,5 +1,6 @@
 # \<xapi-dashboard\>
 
+![Dashboard Screenshot](preview.png)
 
 
 ## Install the Polymer-CLI
